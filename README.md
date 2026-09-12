@@ -1,5 +1,7 @@
 # Paw Ora
 
+<video src="docs/assets/logomotion.mp4" autoplay loop muted playsinline></video>
+
 A shopping bot for pet products on [Bale](https://bale.ai). There is no website; customers use in-chat keyboards.
 
 The mother bot sells from a shared catalog. Wholesale partners can attach their own Bale bot and run a separate shop in the same Node.js process, with isolated products, carts, and orders.
@@ -20,9 +22,9 @@ The mother bot sells from a shared catalog. Wholesale partners can attach their 
 
 ## Screenshots
 
-| Main Menu | Product Catalog | Cart |
-|-----------|-----------------|------|
-| ![Main Menu](docs/assets/screenshot-menu.png) | ![Products](docs/assets/screenshot-products.png) | ![Cart](docs/assets/screenshot-order.png) |
+| Main Menu | Product Catalog | Invoice |
+|-----------|-----------------|---------|
+| ![Main Menu](docs/assets/screenshot-menu.png) | ![Products](docs/assets/screenshot-products.png) | ![Invoice](docs/assets/screenshot-order.png) |
 
 ## Tech Stack
 
