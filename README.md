@@ -1,27 +1,28 @@
-# PetLand Bot
+# Paw Ora
 
-A shopping bot for pet products on [Bale](https://bale.ai), an Iranian messenger with a Telegram-compatible API. There is no website; customers use in-chat keyboards.
+A shopping bot for pet products on [Bale](https://bale.ai). There is no website; customers use in-chat keyboards.
 
-The mother bot (Paw Ora) sells from a shared catalog. Wholesale partners can attach their own Bale bot and run a separate shop in the same Node.js process, with isolated products, carts, and orders.
+The mother bot sells from a shared catalog. Wholesale partners can attach their own Bale bot and run a separate shop in the same Node.js process, with isolated products, carts, and orders.
 
 ## Features
 
-- **Catalog and search** — 100 products in 12 categories, with photos; search by name, brand, or product code
+- **Catalog and search** — 12 categories, product photos, search by name, brand, or product code, and a downloadable PDF catalog
 - **Cart and checkout** — seven-step order form (name, phone, province, city, address, postal code, optional notes) and up to three saved addresses per user
-- **Manual payment** — card-to-card or IBAN transfer, receipt upload, and admin review
+- **Manual payment** — card-to-card or IBAN transfer, receipt upload, admin review, and a PDF invoice after approval
 - **Order tracking** — `PL-YYYYMMDD-####` on the mother bot; partner shops use `TS-` codes
-- **Wholesale (colleague) mode** — access-code login, colleague pricing, and drop-shipping checkout
-- **Partner shops** — register a BotFather token, then manage catalog, branding, bank details, and customer orders from inside the partner bot
+- **Wholesale (colleague) mode** — access-code login, colleague pricing, drop-shipping checkout, and time-limited proformas
+- **Maneli marketers** — separate access code, colleague pricing, invoices handled on the mother admin panel
+- **Partner shops** — register a BotFather token, then manage catalog, branding, bank details, subscriptions, and customer orders from inside the partner bot
 - **Subscriptions and credit** — service packages, monthly subscription invoices (`SI-`), a credit wallet for platform fees, and a configurable golden-period bonus
 - **Support tickets** — open, reply to, and close tickets in the chat
-- **Referral wallet** — deep links and a 5% commission on approved referred orders (unlocked with an access code)
+- **Referral wallet** — deep links and a 5% commission on approved referred retail orders (unlocked with an access code)
 - **Admin panel** — order lifecycle (approve, reject, pack, ship via Snapp or post), product management, broadcasts, withdrawal requests, 12-month sales figures, service invoices, shop block/unblock, and credit settings
 
 ## Screenshots
 
-| Main Menu | Product Catalog | Order Tracking |
-|-----------|-----------------|----------------|
-| ![Main Menu](docs/assets/screenshot-menu.png) | ![Products](docs/assets/screenshot-products.png) | ![Order](docs/assets/screenshot-order.png) |
+| Main Menu | Product Catalog | Cart |
+|-----------|-----------------|------|
+| ![Main Menu](docs/assets/screenshot-menu.png) | ![Products](docs/assets/screenshot-products.png) | ![Cart](docs/assets/screenshot-order.png) |
 
 ## Tech Stack
 
@@ -31,6 +32,7 @@ The mother bot (Paw Ora) sells from a shared catalog. Wholesale partners can att
 | HTTP | Express 5 |
 | Database | PostgreSQL + Prisma 6 |
 | Messaging | Bale Bot API (long polling) |
+| PDFs | PDFKit |
 
 ## Installation
 
@@ -74,6 +76,8 @@ Copy [`.env.example`](.env.example) and fill in real values. Do not commit `.env
 | `PORT` | HTTP port (default: `3000`) |
 | `PUBLIC_BASE_URL` | Public HTTPS origin, used to build partner webhook URLs |
 | `ADMIN_BALE_IDS` | Comma-separated Bale user IDs with admin access |
+| `WAREHOUSE_ADMIN_BALE_IDS` | Warehouse staff IDs for order and ticket notifications (falls back to `ADMIN_BALE_IDS` if empty) |
+| `BROADCAST_GROUP_CHATS` | Optional group posts as `name:chatId`, comma-separated |
 | `COLLEAGUE_ACCESS_CODE` | Access code for wholesale (colleague) mode |
 | `MANELI_ACCESS_CODE` | Access code for Maneli marketer wholesale panel |
 | `MARKETING_ACCESS_CODE` | Access code for referral and wallet features |
@@ -100,6 +104,9 @@ src/
 └── utils/             # Pricing, tracking codes, invoices
 prisma/
 └── schema.prisma      # Database schema
+assets/
+├── brand/             # Logo and watermark used on PDFs
+└── fonts/             # Vazirmatn for Persian PDF text
 ```
 
 ## License

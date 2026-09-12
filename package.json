@@ -1,7 +1,7 @@
 {
   "name": "petland-bot",
   "version": "1.0.0",
-  "description": "PetLand Bale shop bot",
+  "description": "Paw Ora shopping bot for Bale",
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -12,7 +12,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.17.1",
