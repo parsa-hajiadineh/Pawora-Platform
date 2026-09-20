@@ -13,6 +13,7 @@ const {
 } = require("../keyboards/menus");
 const { formatPrice, calcRetailPrice } = require("../utils/price");
 const { isAdmin, isWarehouseOnly } = require("../services/user");
+const catalogMenu = require("../services/catalogMenu");
 
 const STEP_HUB = "ADMIN_PRODUCTS";
 const STEP_PHOTO = "AP:PHOTO";
@@ -28,6 +29,9 @@ const STEP_ADD_CAT = "AP:ADD_CAT";
 const STEP_ADD_BRAND = "AP:ADD_BRAND";
 const STEP_MOVE_CAT = "AP:MOVE_CAT";
 const STEP_MOVE_BRAND = "AP:MOVE_BRAND";
+const STEP_MENU_CAT = "AP:MENU_CAT";
+const STEP_MENU_BRAND_PICK = "AP:MENU_BRAND_PICK";
+const STEP_MENU_BRAND_NAME = "AP:MENU_BRAND_NAME";
 
 const CODES = {
   "photo-s": "photo",
@@ -347,6 +351,21 @@ async function askMoveCategory(user, chatId, product) {
   await bale.sendKeyboard(chatId, "روی دسته بزنید:", inlineKb(categoryRows("apmc")));
 }
 
+async function askBrandCategory(user, chatId) {
+  await setStep(user, STEP_MENU_BRAND_PICK, { tempDescription: null });
+  await reply(
+    user,
+    chatId,
+    "دسته‌ای که برند جدید به آن اضافه شود را انتخاب کنید:",
+    adminBackMenu()
+  );
+  await bale.sendKeyboard(chatId, "روی دسته بزنید:", inlineKb(categoryRows("apnb")));
+}
+
+function isReservedMenuName(name) {
+  return Object.values(BTN).includes(name);
+}
+
 async function applyMoveCategory(user, chatId, catIndex, brandIndex) {
   const product = await loadMotherProduct(user.lastProductCode);
   if (!product) {
@@ -423,6 +442,22 @@ async function saveNewProduct(user, chatId, draft) {
 
 async function handleCallback(user, chatId, data) {
   if (!isAdmin(user)) return false;
+  if (data.startsWith("apnb:")) {
+    if (user.adminStep !== STEP_MENU_BRAND_PICK && user.adminStep !== STEP_MENU_BRAND_NAME) {
+      return true;
+    }
+    const index = Number(data.slice(5));
+    const cat = PRODUCT_CATEGORIES[index];
+    if (!cat) return true;
+    await writeDraft(user, STEP_MENU_BRAND_NAME, { menuCatIndex: index });
+    await reply(
+      user,
+      chatId,
+      `${cat.btn}\nنام برند / دکمه جدید را بفرستید:`,
+      adminBackMenu()
+    );
+    return true;
+  }
   if (data.startsWith("apmc:")) {
     if (!isMoveCatStep(user.adminStep)) return true;
     const index = Number(data.slice(5));
@@ -541,7 +576,11 @@ async function goBack(user, chatId) {
     await askMoveCategory(user, chatId);
     return true;
   }
-  if (step === STEP_ADD_CODE || step === STEP_DEL || step === "SET_IMAGE_CODE") {
+  if (step === STEP_MENU_BRAND_NAME) {
+    await askBrandCategory(user, chatId);
+    return true;
+  }
+  if (step === STEP_ADD_CODE || step === STEP_DEL || step === "SET_IMAGE_CODE" || step === STEP_MENU_CAT || step === STEP_MENU_BRAND_PICK) {
     await showHub(user, chatId);
     return true;
   }
@@ -578,6 +617,22 @@ async function handleText(user, chatId, text) {
       "کد محصولی که باید حذف شود را بفرستید:",
       adminBackMenu()
     );
+    return true;
+  }
+  if (text === BTN.AP_ADD_CAT) {
+    if (isWarehouseOnly(user)) return false;
+    await setStep(user, STEP_MENU_CAT, { tempDescription: null });
+    await reply(
+      user,
+      chatId,
+      "نام دسته‌بندی جدید را بفرستید.\nاین نام در منوی محصولات نمایش داده می‌شود.",
+      adminBackMenu()
+    );
+    return true;
+  }
+  if (text === BTN.AP_ADD_BRAND) {
+    if (isWarehouseOnly(user)) return false;
+    await askBrandCategory(user, chatId);
     return true;
   }
 
@@ -727,6 +782,71 @@ async function handleText(user, chatId, text) {
     const desc = text === BTN.SKIP ? "" : text.trim();
     await writeDraft(user, STEP_ADD_CAT, { desc });
     await askCategory(user, chatId);
+    return true;
+  }
+
+  if (user.adminStep === STEP_MENU_CAT) {
+    if (isReservedMenuName(text.trim())) {
+      await reply(user, chatId, "این نام رزرو شده است. نام دیگری بفرستید.", adminBackMenu());
+      return true;
+    }
+    let result;
+    try {
+      result = catalogMenu.addCategory(text);
+    } catch (err) {
+      console.error("ADD MENU CATEGORY:", err.message);
+      await reply(user, chatId, "ذخیره دسته‌بندی ممکن نشد. دوباره تلاش کنید.", adminBackMenu());
+      return true;
+    }
+    if (!result.ok) {
+      await reply(user, chatId, result.error, adminBackMenu());
+      return true;
+    }
+    try {
+      await ensureCategory(result.name);
+    } catch (err) {
+      console.error("ENSURE MENU CATEGORY:", err.message);
+    }
+    await setStep(user, STEP_HUB, { tempDescription: null });
+    await reply(
+      user,
+      chatId,
+      `✅ دسته‌بندی «${result.name}» به منوی محصولات اضافه شد.`,
+      adminProductsMenu()
+    );
+    return true;
+  }
+
+  if (user.adminStep === STEP_MENU_BRAND_PICK) {
+    await reply(user, chatId, "دسته‌بندی را از دکمه‌های اینلاین انتخاب کنید.", adminBackMenu());
+    return true;
+  }
+
+  if (user.adminStep === STEP_MENU_BRAND_NAME) {
+    if (isReservedMenuName(text.trim())) {
+      await reply(user, chatId, "این نام رزرو شده است. نام دیگری بفرستید.", adminBackMenu());
+      return true;
+    }
+    const draft = readDraft(user);
+    let result;
+    try {
+      result = catalogMenu.addBrand(Number(draft.menuCatIndex), text);
+    } catch (err) {
+      console.error("ADD MENU BRAND:", err.message);
+      await reply(user, chatId, "ذخیره برند ممکن نشد. دوباره تلاش کنید.", adminBackMenu());
+      return true;
+    }
+    if (!result.ok) {
+      await reply(user, chatId, result.error, adminBackMenu());
+      return true;
+    }
+    await setStep(user, STEP_HUB, { tempDescription: null });
+    await reply(
+      user,
+      chatId,
+      `✅ برند «${result.name}» به دسته «${result.category}» اضافه شد.`,
+      adminProductsMenu()
+    );
     return true;
   }
 

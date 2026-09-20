@@ -118,6 +118,12 @@ const PRODUCT_CATEGORIES = [
   },
 ];
 
+try {
+  require("../services/catalogMenu").hydrate(PRODUCT_CATEGORIES);
+} catch (err) {
+  console.error("CATALOG MENU HYDRATE:", err.message);
+}
+
 const BTN = {
   PRODUCTS: "🛍 محصولات",
   CATALOG_PDF: "📋 لیست جامع محصولات",
@@ -242,6 +248,8 @@ const BTN = {
   SET_IMAGE: "🖼 تنظیم عکس محصول",
   AP_ADD: "➕ افزودن محصول",
   AP_DEL: "🗑 حذف محصول",
+  AP_ADD_CAT: "➕ افزودن دسته‌بندی",
+  AP_ADD_BRAND: "➕ افزودن برند",
   CONFIRM_ADDRESS: "✅ اطلاعات ارسال مورد تایید است",
   DELETE_ADDRESS: "🗑 حذف مشخصات ثبت شده",
   NEW_ADDRESS: "➕ آدرس جدید",
@@ -571,6 +579,7 @@ function adminApprovedActions() {
 function adminProductsMenu() {
   return kb([
     [{ text: BTN.AP_ADD }, { text: BTN.AP_DEL }],
+    [{ text: BTN.AP_ADD_CAT }, { text: BTN.AP_ADD_BRAND }],
     [{ text: BTN.BACK_PRODUCT_LIST }],
   ]);
 }

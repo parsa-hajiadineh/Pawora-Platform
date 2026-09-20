@@ -557,7 +557,8 @@ module.exports.handleCallbackQuery = async function handleCallbackQuery(cq, user
       data.startsWith("apb:") ||
       data.startsWith("aps:") ||
       data.startsWith("apmc:") ||
-      data.startsWith("apmb:")) &&
+      data.startsWith("apmb:") ||
+      data.startsWith("apnb:")) &&
     isAdmin(user)
   ) {
     await require("./adminProducts").handleCallback(user, chatId, data);
