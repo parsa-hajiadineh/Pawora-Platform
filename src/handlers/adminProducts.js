@@ -12,7 +12,7 @@ const {
   kb,
 } = require("../keyboards/menus");
 const { formatPrice, calcRetailPrice } = require("../utils/price");
-const { isAdmin } = require("../services/user");
+const { isAdmin, isWarehouseOnly } = require("../services/user");
 
 const STEP_HUB = "ADMIN_PRODUCTS";
 const STEP_PHOTO = "AP:PHOTO";
@@ -26,12 +26,15 @@ const STEP_ADD_PRICE = "AP:ADD_PRICE";
 const STEP_ADD_DESC = "AP:ADD_DESC";
 const STEP_ADD_CAT = "AP:ADD_CAT";
 const STEP_ADD_BRAND = "AP:ADD_BRAND";
+const STEP_MOVE_CAT = "AP:MOVE_CAT";
+const STEP_MOVE_BRAND = "AP:MOVE_BRAND";
 
 const CODES = {
   "photo-s": "photo",
   "desc-s": "desc",
   "price-s": "price",
   "stock-s": "stock",
+  "cat-s": "cat",
 };
 
 function isProductAdminStep(step) {
@@ -48,6 +51,7 @@ function helpText() {
     "• desc-s  تغییر توضیحات",
     "• price-s  تغییر قیمت همکاری",
     "• stock-s  موجود / ناموجود کردن کالا",
+    "• cat-s  جابجایی دسته‌بندی و برند",
     "",
     "از دکمه‌های همین صفحه می‌توانید محصول جدید بسازید یا محصولی را با کد حذف کنید.",
     "اگر محصول عکس داشته باشد، عکس قبلی حذف می‌شود و عکس جدید گرفته می‌شود.",
@@ -234,6 +238,10 @@ async function handleQuick(user, chatId, text) {
     await askStock(user, chatId, product);
     return true;
   }
+  if (kind === "cat") {
+    await askMoveCategory(user, chatId, product);
+    return true;
+  }
   return false;
 }
 
@@ -283,16 +291,16 @@ async function askStock(user, chatId, product) {
   );
 }
 
-function categoryRows() {
+function categoryRows(cbPrefix = "apc") {
   const rows = [];
   for (let i = 0; i < PRODUCT_CATEGORIES.length; i += 2) {
     const row = [
-      { text: PRODUCT_CATEGORIES[i].btn, callback_data: `apc:${i}` },
+      { text: PRODUCT_CATEGORIES[i].btn, callback_data: `${cbPrefix}:${i}` },
     ];
     if (PRODUCT_CATEGORIES[i + 1]) {
       row.push({
         text: PRODUCT_CATEGORIES[i + 1].btn,
-        callback_data: `apc:${i + 1}`,
+        callback_data: `${cbPrefix}:${i + 1}`,
       });
     }
     rows.push(row);
@@ -300,23 +308,66 @@ function categoryRows() {
   return rows;
 }
 
-function brandRows(catIndex) {
+function brandRows(catIndex, cbPrefix = "apb") {
   const cat = PRODUCT_CATEGORIES[catIndex];
   if (!cat) return [];
   const rows = [];
   for (let i = 0; i < cat.subMenus.length; i += 2) {
     const row = [
-      { text: cat.subMenus[i], callback_data: `apb:${catIndex}:${i}` },
+      { text: cat.subMenus[i], callback_data: `${cbPrefix}:${catIndex}:${i}` },
     ];
     if (cat.subMenus[i + 1]) {
       row.push({
         text: cat.subMenus[i + 1],
-        callback_data: `apb:${catIndex}:${i + 1}`,
+        callback_data: `${cbPrefix}:${catIndex}:${i + 1}`,
       });
     }
     rows.push(row);
   }
   return rows;
+}
+
+function isMoveCatStep(step) {
+  return step === STEP_MOVE_CAT || step === STEP_MOVE_BRAND;
+}
+
+async function askMoveCategory(user, chatId, product) {
+  const target = product || (await loadMotherProduct(user.lastProductCode));
+  if (!target) {
+    await reply(user, chatId, "محصول پیدا نشد. دوباره از لیست باز کنید.", adminBackMenu());
+    return;
+  }
+  await setStep(user, STEP_MOVE_CAT, { lastProductCode: target.code });
+  await reply(
+    user,
+    chatId,
+    `دسته‌بندی فعلی «${target.title}»: ${target.category?.title || "—"} › ${target.brand || "—"}\n\nدسته جدید را انتخاب کنید:`,
+    adminBackMenu()
+  );
+  await bale.sendKeyboard(chatId, "روی دسته بزنید:", inlineKb(categoryRows("apmc")));
+}
+
+async function applyMoveCategory(user, chatId, catIndex, brandIndex) {
+  const product = await loadMotherProduct(user.lastProductCode);
+  if (!product) {
+    await reply(user, chatId, "محصول پیدا نشد. دوباره از لیست باز کنید.", adminBackMenu());
+    return;
+  }
+  const cat = PRODUCT_CATEGORIES[catIndex];
+  const brand = cat?.subMenus[brandIndex];
+  if (!cat || !brand) {
+    await reply(user, chatId, "انتخاب نامعتبر است. دوباره دسته را انتخاب کنید.", adminBackMenu());
+    await askMoveCategory(user, chatId, product);
+    return;
+  }
+  const category = await ensureCategory(cat.btn);
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { categoryId: category.id, brand },
+  });
+  await setStep(user, null, { lastProductCode: product.code });
+  await reply(user, chatId, `✅ «${product.title}» به ${cat.btn} › ${brand} منتقل شد.`);
+  await refreshProduct(user, chatId, product.code);
 }
 
 async function askCategory(user, chatId) {
@@ -372,6 +423,27 @@ async function saveNewProduct(user, chatId, draft) {
 
 async function handleCallback(user, chatId, data) {
   if (!isAdmin(user)) return false;
+  if (data.startsWith("apmc:")) {
+    if (!isMoveCatStep(user.adminStep)) return true;
+    const index = Number(data.slice(5));
+    const cat = PRODUCT_CATEGORIES[index];
+    if (!cat) return true;
+    await setStep(user, STEP_MOVE_BRAND, { lastProductCode: user.lastProductCode });
+    await reply(
+      user,
+      chatId,
+      `${cat.btn}\nزیرمنو را انتخاب کنید:`,
+      adminBackMenu()
+    );
+    await bale.sendKeyboard(chatId, "روی زیرمنو بزنید:", inlineKb(brandRows(index, "apmb")));
+    return true;
+  }
+  if (data.startsWith("apmb:")) {
+    if (!isMoveCatStep(user.adminStep)) return true;
+    const parts = data.slice(5).split(":");
+    await applyMoveCategory(user, chatId, Number(parts[0]), Number(parts[1]));
+    return true;
+  }
   if (data.startsWith("apc:")) {
     const index = Number(data.slice(4));
     const cat = PRODUCT_CATEGORIES[index];
@@ -429,7 +501,7 @@ async function goBack(user, chatId) {
   if (!isProductAdminStep(step) && step !== "SET_IMAGE_UPLOAD" && step !== "SET_IMAGE_CODE") {
     return false;
   }
-  if (step === STEP_PHOTO || step === STEP_DESC || step === STEP_PRICE || step === STEP_STOCK || step === "SET_IMAGE_UPLOAD") {
+  if (step === STEP_PHOTO || step === STEP_DESC || step === STEP_PRICE || step === STEP_STOCK || step === STEP_MOVE_CAT || step === "SET_IMAGE_UPLOAD") {
     const code = user.lastProductCode;
     await setStep(user, null);
     if (code) await refreshProduct(user, chatId, code);
@@ -465,6 +537,10 @@ async function goBack(user, chatId) {
     await askCategory(user, chatId);
     return true;
   }
+  if (step === STEP_MOVE_BRAND) {
+    await askMoveCategory(user, chatId);
+    return true;
+  }
   if (step === STEP_ADD_CODE || step === STEP_DEL || step === "SET_IMAGE_CODE") {
     await showHub(user, chatId);
     return true;
@@ -480,6 +556,7 @@ async function handleText(user, chatId, text) {
   if (await handleQuick(user, chatId, text)) return true;
 
   if (text === BTN.AP_ADD) {
+    if (isWarehouseOnly(user)) return false;
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -493,6 +570,7 @@ async function handleText(user, chatId, text) {
     return true;
   }
   if (text === BTN.AP_DEL) {
+    if (isWarehouseOnly(user)) return false;
     await setStep(user, STEP_DEL, { tempDescription: null });
     await reply(
       user,

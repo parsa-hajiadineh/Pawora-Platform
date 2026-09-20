@@ -737,8 +737,8 @@ module.exports.handleAdmin = async function handleAdmin(user, chatId, text) {
     if (await adminCreditSettings.handleText(user, chatId, text)) return true;
     if (await adminManage.handleText(user, chatId, text)) return true;
     if (await adminBroadcast.handleText(user, chatId, text)) return true;
-    if (await adminProducts.handleText(user, chatId, text)) return true;
   }
+  if (await adminProducts.handleText(user, chatId, text)) return true;
 
   if (text === BTN.BACK_PRODUCT_LIST && (user.adminStep || user.pendingOrderId)) {
     await goAdminBack(user, chatId);
